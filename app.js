@@ -177,18 +177,18 @@ async function send() {
   const prompt = inputEl.value.trim();
   if (!prompt && !attachments.length) return;
   const pass = localStorage.getItem('wyfile_pass') || '';
-  const model = $('model').value;
+  const mode = $('model').value === 'expert' ? 'expert' : 'fast';
   const filesNow = attachments.slice();
   addMsg('user', prompt || '（请分析附件文件）', filesNow.map((f) => f.name));
   inputEl.value = ''; inputEl.style.height = 'auto';
   sending = true; $('sendBtn').disabled = true;
-  const thinking = addMsg('model', '思考中…');
+  const bubble = addMsg('model', '思考中…');
   try {
     const resp = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        pass, model,
+        pass, mode,
         history: history.slice(-20),
         prompt: prompt || '请分析附件文件的内容。',
         files: filesNow.map((f) => f.kind === 'inline'
@@ -196,18 +196,30 @@ async function send() {
           : { name: f.name, mimeType: 'text/plain', text: f.data }),
       }),
     });
-    const data = await resp.json().catch(() => ({}));
-    thinking.parentElement.remove();
     if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      bubble.parentElement.remove();
       if (resp.status === 401) openPass();
       addMsg('error', '出错了：' + (data.error || ('HTTP ' + resp.status)));
       return;
     }
-    addMsg('model', data.text || '（没有返回文字）');
+    // Streaming: render deltas as they arrive.
+    let full = '';
+    bubble.textContent = '';
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    for (;;) {
+      const r = await reader.read();
+      if (r.done) break;
+      full += dec.decode(r.value, { stream: true });
+      bubble.textContent = full;
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+    if (!full.trim()) bubble.textContent = '（没有返回文字）';
     history.push({ role: 'user', text: prompt || '（分析附件：' + filesNow.map((f) => f.name).join('、') + '）' });
-    history.push({ role: 'model', text: data.text });
+    history.push({ role: 'model', text: full });
   } catch (err) {
-    thinking.parentElement.remove();
+    if (bubble.parentElement) bubble.parentElement.remove();
     addMsg('error', '网络错误：' + err.message);
   } finally {
     sending = false; $('sendBtn').disabled = false;
@@ -236,8 +248,8 @@ inputEl.addEventListener('input', () => {
 });
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
-$('model').value = localStorage.getItem('wyfile_model') || 'gemini-3.8-flash';
-$('model').onchange = () => localStorage.setItem('wyfile_model', $('model').value);
+$('model').value = localStorage.getItem('wyfile_mode') === 'expert' ? 'expert' : 'fast';
+$('model').onchange = () => localStorage.setItem('wyfile_mode', $('model').value);
 
 renderEmpty();
 fetch('/api/config').then((r) => r.json()).then((c) => {
