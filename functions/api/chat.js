@@ -5,7 +5,7 @@
 
 const MODES = {
   fast: { model: 'gemini-3.8-flash', thinkingLevel: 'low' },
-  expert: { model: 'gemini-3.1-pro-preview', thinkingLevel: 'high' },
+  expert: { model: 'gemini-3.8-flash', thinkingLevel: 'high' },
 };
 const MAX_TOTAL_B64 = 28 * 1024 * 1024; // ~21MB raw, keeps request under Gemini inline limits
 
