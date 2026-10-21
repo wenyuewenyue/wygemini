@@ -12,6 +12,14 @@ const FALLBACK_MODE = 'lite'; // used automatically when the 3.8-flash free quot
 const MAX_TOTAL_B64 = 28 * 1024 * 1024; // ~21MB raw, keeps request under Gemini inline limits
 
 export async function onRequestPost(context) {
+  try {
+    return await handlePost(context);
+  } catch (e) {
+    return err(500, '函数异常：' + ((e && e.message) || String(e)));
+  }
+}
+
+async function handlePost(context) {
   const env = context.env || {};
   let body;
   try { body = await context.request.json(); } catch { return err(400, '请求不是有效 JSON'); }
@@ -62,8 +70,10 @@ export async function onRequestPost(context) {
   let fellBack = false;
   try { resp = await callGemini(cfg, true); } catch (e) { return err(502, '连不上 Gemini API：' + e.message); }
   if (!resp.ok) {
-    const data = await resp.json().catch(() => ({}));
-    const msg = (data && data.error && data.error.message) || ('Gemini API HTTP ' + resp.status);
+    const raw = await resp.text().catch(() => '');
+    let msg = '';
+    try { const d = JSON.parse(raw); msg = (d && d.error && d.error.message) || ''; } catch {}
+    if (!msg) msg = ('Gemini API HTTP ' + resp.status + (raw ? '：' + raw.slice(0, 300) : ''));
     if (resp.status === 429 && mode !== FALLBACK_MODE) {
       // Free quota for this model is used up for today: fall back to Flash-Lite,
       // whose free tier has its own, much larger daily allowance.
@@ -71,15 +81,21 @@ export async function onRequestPost(context) {
         const fb = MODES[FALLBACK_MODE];
         const r3 = await callGemini(fb, true);
         if (r3.ok) { resp = r3; usedCfg = fb; fellBack = true; }
-        else return err(502, msg);
-      } catch { return err(502, msg); }
+        else {
+          const raw3 = await r3.text().catch(() => '');
+          return err(502, msg + '（自动切换 Lite 也失败：HTTP ' + r3.status + (raw3 ? '：' + raw3.slice(0, 300) : '') + '）');
+        }
+      } catch (e) { return err(502, msg + '（自动切换 Lite 出错：' + e.message + '）'); }
     } else if (resp.status === 400) {
       // thinkingConfig may not be accepted for this model; retry once without it.
       try {
         const r2 = await callGemini(cfg, false);
         if (r2.ok) resp = r2;
-        else return err(502, msg);
-      } catch { return err(502, msg); }
+        else {
+          const raw2 = await r2.text().catch(() => '');
+          return err(502, msg + '（去掉 thinking 重试也失败：HTTP ' + r2.status + (raw2 ? '：' + raw2.slice(0, 300) : '') + '）');
+        }
+      } catch (e) { return err(502, msg + '（去掉 thinking 重试出错：' + e.message + '）'); }
     } else {
       return err(resp.status === 404 ? 404 : 502, msg);
     }
