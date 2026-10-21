@@ -177,7 +177,7 @@ async function send() {
   const prompt = inputEl.value.trim();
   if (!prompt && !attachments.length) return;
   const pass = localStorage.getItem('wyfile_pass') || '';
-  const mode = $('model').value === 'expert' ? 'expert' : 'fast';
+  const mode = ['lite', 'expert'].includes($('model').value) ? $('model').value : 'fast';
   const filesNow = attachments.slice();
   addMsg('user', prompt || '（请分析附件文件）', filesNow.map((f) => f.name));
   inputEl.value = ''; inputEl.style.height = 'auto';
@@ -248,7 +248,7 @@ inputEl.addEventListener('input', () => {
 });
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
-$('model').value = localStorage.getItem('wyfile_mode') === 'expert' ? 'expert' : 'fast';
+$('model').value = ['lite', 'expert'].includes(localStorage.getItem('wyfile_mode')) ? localStorage.getItem('wyfile_mode') : 'lite';
 $('model').onchange = () => localStorage.setItem('wyfile_mode', $('model').value);
 
 renderEmpty();
