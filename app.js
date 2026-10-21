@@ -123,10 +123,13 @@ async function extractOffice(file) {
     const rows = [];
     for (const rm of xml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
       const cells = [];
-      for (const cm of rm[1].matchAll(/<c[^>]*?(?:\st="(\w+)")?[^>]*>(?:<v>([\s\S]*?)<\/v>|<is><t[^>]*>([\s\S]*?)<\/t><\/is>)?<\/c>/g)) {
-        let v = cm[3] || cm[2] || '';
-        if (cm[1] === 's' && v !== '') v = strings[parseInt(v, 10)] ?? v;
-        cells.push(v);
+      for (const cm of rm[1].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
+        const tM = /(?:^|\s)t="([^"]*)"/.exec(cm[1]);
+        const vm = /<v>([\s\S]*?)<\/v>/.exec(cm[2]);
+        const im = vm ? null : /<is>[\s\S]*?<t[^>]*>([\s\S]*?)<\/t>/.exec(cm[2]);
+        let v = vm ? vm[1] : (im ? im[1] : '');
+        if (tM && tM[1] === 's' && v !== '') v = strings[parseInt(v, 10)] ?? v;
+        cells.push(xmlText(v));
       }
       rows.push(cells.join('\t'));
     }
