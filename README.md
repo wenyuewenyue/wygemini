@@ -34,3 +34,5 @@ Gemini API 由服务端（Cloudflare）调用，API Key 不进浏览器。
 - `functions/api/chat.js` — POST /api/chat（服务端调 Gemini）
 
 触发部署：2026-10-21 修复 Excel 文字提取后重新部署。
+
+触发验证：2026-10-21 第二次。
